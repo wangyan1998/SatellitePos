@@ -1,47 +1,31 @@
-import csv
-import tool.tool as tool
 import numpy as np
+import tool.tool as tool
 
 ######################################################################################################
-# 测试版伪距迭代定位，数据从文件中读取，使用的是九峰站的数据
+# 测试版RAIM,使用的是GPS拉萨站的数据
 ######################################################################################################
-f = open('../dataset/mydataset.csv', 'r')
-reader = csv.reader(f)  # 创建一个与该文件相关的阅读器
-result = list(reader)
-inf = []
-inf1 = []
-p = []
-t = []
+inf = [[17264158.265, 9012094.795, 18535344.120, 23483072.717, -0.000047243624],
+       [-4939748.322, 25907897.946, -1938959.799, 21576175.050, -0.000147955131],
+       [10411489.279, 15056961.599, 19201346.120, 21308372.478, 0.000388797552],
+       [-9251262.428, 11560251.160, 21828403.561, 21671952.866, -0.000049201545],
+       ]
+
+inf1 = [[17264158.265, 9012094.795, 18535344.120],
+        [-4939748.322, 25907897.946, -1938959.799],
+        [10411489.279, 15056961.599, 19201346.120],
+        [-9251262.428, 11560251.160, 21828403.561],
+        ]
+
+p = [23483072.717, 21576175.050, 21308372.478, 21671952.866]
+
+t = [-0.000047243624, -0.000147955131, 0.000388797552, -0.000049201545]
 # 初始估计接收机位置
 pos0 = [0, 0, 0]
-pos1 = [-2279829.1069, 5004709.2387, 3219779.0559]
 
-
-# 从文件中获取数据
-def getdata(i):
-    global inf
-    k = i
-    j = i + 5
-    while k < j:
-        a = [float(result[k][2]), float(result[k][3]), float(result[k][4]), float(result[k][5]), float(result[k][6])]
-        inf.append(a)
-        k += 1
-    return inf
-
-
-# 将获取的数据存入到相应的数组中
-def processdata():
-    global inf1
-    global p
-    global t
-    for i in range(len(inf)):
-        r = []
-        r.append(inf[i][0])
-        r.append(inf[i][1])
-        r.append(inf[i][2])
-        inf1.append(r)
-        p.append(inf[i][3])
-        t.append(inf[i][4])
+pos1 = [-106943.5, 5549296.14, 3139212.6]
+x1 = []
+y1 = []
+z1 = []
 
 
 # 获取两点之间的距离
@@ -88,7 +72,7 @@ def getdis():
     k = len(p)
     i = 0
     while i < k:
-        dis = get_distance2(inf[i], pos0,t[i])
+        dis = get_distance1(inf[i], pos0)
         res.append(dis)
         i = i + 1
     return res
@@ -108,6 +92,43 @@ def getmatH(info, pos, r):
         i = i + 1
         res.append(l)
     return res
+
+
+# 获取观测矩阵
+def getmatH2(info, pos, r):
+    res = []
+    k = len(info)
+    i = 0
+    c = 3 * 10 ** 8
+    while i < k:
+        l = []
+        l.append((pos[0] - info[i][0]) / r[i])
+        l.append((pos[1] - info[i][1]) / r[i])
+        l.append((pos[2] - info[i][2]) / r[i])
+        i = i + 1
+        res.append(l)
+    return res
+
+
+def calTs(p1, H):
+    global pos0
+    detp1 = getdetp(p1)
+    # print(list(Ho))
+    H1 = np.array(H)
+    # print("观测矩阵:\n", H1)
+    H2 = np.transpose(H1)
+    H3 = np.dot(H2, H1)
+    # print(H3)
+    H4 = np.linalg.pinv(H3)
+    H5 = np.dot(H1, H4)
+    H6 = np.dot(H5, H2)
+    # print(H6)
+    In = np.eye(len(p))
+    S = In - H6
+    R = np.dot(S, detp1)
+    Rt = np.transpose(R)
+    Ts = np.dot(Rt, R)
+    print("Ts:", Ts)
 
 
 # 计算接收机的估计位置
@@ -131,15 +152,43 @@ def calresult():
         H4 = np.linalg.pinv(H3)
         # print(H4)
         H5 = np.dot(H4, H2)
+        calTs(p1, H)
         # print(H5)
         det = np.dot(H5, detp)
         # print(det)
         pos0 = pos0 + det
         print("接收机估计位置为：；", pos0)
-    # print(pos1 - pos0)
+    print(pos1 - pos0)
 
 
-getdata(16)
-processdata()
+# 获取攻击使用的梯度矩阵
+def getgrad():
+    global p
+    last = []
+    for j in range(4):
+        print(j)
+        for i in range(10):
+            p[j] = p[j] + i / 10
+            last = pos0
+            calresult()
+            print("pos0", pos0)
+            print("last", last)
+        if pos0[0] < last[0]:
+            x1.append(1)
+        else:
+            x1.append(-1)
+        if pos0[1] < last[1]:
+            y1.append(1)
+        else:
+            y1.append(-1)
+        if pos0[2] < last[2]:
+            z1.append(1)
+        else:
+            z1.append(-1)
+    print(x1)
+    print(y1)
+    print(z1)
+
+
 calresult()
-print("接收机经纬度位置", tool.XYZ_to_LLA(pos0[0], pos0[1], pos0[2]))
+print(tool.XYZ_to_LLA(pos0[0], pos0[1], pos0[2]))
