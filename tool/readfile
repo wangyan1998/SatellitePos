@@ -1,0 +1,29 @@
+import csv
+import numpy as np
+
+
+#############################################################################################
+# 从csv文件中读取卫星数据，分两步，先按路径打开文件，然后按行读取
+#############################################################################################
+def openfile():
+    f = open('../dataset/mydataset.csv', 'r')
+    reader = csv.reader(f)  # 创建一个与该文件相关的阅读器
+    result = list(reader)
+    return result
+
+
+def getdata(i):
+    result = openfile()
+    k = i
+    j = i + 4
+    res = []
+    while k < j:
+        a = [float(result[k][2]), float(result[k][3]), float(result[k][4]), float(result[k][5]), float(result[k][6])]
+        res.append(a)
+        k += 1
+    return res
+
+
+solve = getdata(1)
+print(solve)
+print(np.array(solve))
